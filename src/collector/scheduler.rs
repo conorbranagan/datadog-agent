@@ -43,7 +43,6 @@ impl Scheduler {
         thread::spawn(move || {
             let mut next_tick = Instant::now();
             loop {
-                next_tick += interval;
                 let now = Instant::now();
                 if let Ok(_) = rx.try_recv() {
                     // Stop signal received
@@ -52,9 +51,10 @@ impl Scheduler {
                 if now >= next_tick {
                     // Time to run the check
                     execute_check(&check_name);
-                    next_tick = now;
+                    next_tick = Instant::now() + interval;
                 }
-                thread::sleep(next_tick - now);
+                let sleep_duration = if now < next_tick { next_tick - now } else { Duration::from_millis(0) };
+                thread::sleep(sleep_duration);
             }
         });
     }
