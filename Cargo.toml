@@ -6,3 +6,8 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+
+[dev-dependencies]
+# The `test` crate is not a real crate, this is just an example
+# Replace with actual testing dependencies when known
+test = "0.1"
