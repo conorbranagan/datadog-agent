@@ -65,6 +65,9 @@ impl Scheduler {
     }
 
     pub fn add_check(&mut self, check_name: String, interval: Duration) -> JoinHandle<()> {
+        if interval == Duration::from_secs(0) {
+            panic!("Interval cannot be zero");
+        }
         let job_queue = self.job_queues.entry(interval).or_insert_with(|| JobQueue::new());
         job_queue.add_check(check_name.clone());
         let handle = thread::spawn(move || {
