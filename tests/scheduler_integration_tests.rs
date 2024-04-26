@@ -11,8 +11,7 @@ fn scheduler_initialization() {
 #[test]
 fn add_and_stop_check() {
     let mut scheduler = Scheduler::new();
-    let result = scheduler.add_check("test_check".to_string(), Duration::from_secs(1));
-    assert!(result.is_ok(), "Check with valid interval should be added");
+    let _ = scheduler.add_check("test_check".to_string(), Duration::from_secs(1));
     assert!(scheduler.has_ticker("test_check"), "Check should be added to the scheduler");
 
     scheduler.stop_check("test_check");
@@ -20,17 +19,16 @@ fn add_and_stop_check() {
 }
 
 #[test]
+#[should_panic(expected = "Interval cannot be zero")]
 fn add_check_with_invalid_interval() {
     let mut scheduler = Scheduler::new();
-    let result = scheduler.add_check("test_check".to_string(), Duration::from_secs(0)); // Zero interval is invalid
-    assert!(result.is_err(), "Adding check with zero interval should return an error");
+    let _ = scheduler.add_check("test_check".to_string(), Duration::from_secs(0)); // Zero interval is invalid
 }
 
 #[test]
 fn add_check_with_valid_interval() {
     let mut scheduler = Scheduler::new();
-    let result = scheduler.add_check("test_check".to_string(), Duration::from_secs(5));
-    assert!(result.is_ok(), "Adding check with valid interval should be successful");
+    let _ = scheduler.add_check("test_check".to_string(), Duration::from_secs(5));
     assert!(scheduler.has_ticker("test_check"), "Check should be added to the scheduler");
 }
 
