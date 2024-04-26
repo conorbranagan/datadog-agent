@@ -5,9 +5,7 @@ use std::thread;
 #[test]
 fn scheduler_initialization() {
     let scheduler = Scheduler::new();
-    // Removed the assertion that used the non-existent get_ticker_count method
-    // Assert that the scheduler has been initialized without errors
-    assert!(scheduler.job_queues.is_empty(), "Scheduler job_queues should be initialized as empty");
+    assert!(scheduler.is_job_queues_empty(), "Scheduler job_queues should be initialized as empty");
 }
 
 #[test]

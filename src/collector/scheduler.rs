@@ -107,6 +107,10 @@ impl Scheduler {
         }
         stats
     }
+
+    pub fn is_job_queues_empty(&self) -> bool {
+        self.job_queues.is_empty()
+    }
 }
 
 // Mock check for testing purposes
