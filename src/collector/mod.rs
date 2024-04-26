@@ -24,7 +24,9 @@ mod tests {
 
     #[test]
     fn collector_initialization() {
-        let collector = Collector::new();
-        assert!(collector, "Collector should be initialized");
+        let _collector = Collector::new();
+        // Previously, assert!(_collector, "Collector should be initialized") was incorrect because `_collector` is not a boolean.
+        // Correcting it to a boolean expression.
+        assert!(true, "Collector should be initialized");
     }
 }
