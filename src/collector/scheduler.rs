@@ -3,6 +3,12 @@ use std::time::{Duration, Instant};
 use std::sync::mpsc::{self, Sender, Receiver};
 use std::thread;
 
+// Placeholder function representing the execution of a check
+fn execute_check(check_name: &str) {
+    println!("Executing check: {}", check_name);
+    // Here the actual check execution logic will be implemented
+}
+
 pub struct Scheduler {
     // This struct will hold the state and functionality for the scheduler
     tickers: HashMap<String, (Duration, Sender<()>)>,
@@ -36,8 +42,7 @@ impl Scheduler {
                 }
                 if now >= next_tick {
                     // Time to run the check
-                    println!("Running check: {}", check_name);
-                    // Here we would call the actual check execution logic
+                    execute_check(&check_name);
                     next_tick = now;
                 }
                 thread::sleep(next_tick - now);
