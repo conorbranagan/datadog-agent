@@ -53,7 +53,17 @@ impl Scheduler {
                 let now = Instant::now();
                 if now >= next_tick {
                     // Time to run the check
+                    if let Ok(_) = rx.try_recv() {
+                        // Stop signal received
+                        println!("Stop signal received, breaking loop..."); // New print statement
+                        break;
+                    }
                     execute_check(&check_name);
+                    if let Ok(_) = rx.try_recv() {
+                        // Stop signal received
+                        println!("Stop signal received, breaking loop..."); // New print statement
+                        break;
+                    }
                     next_tick = Instant::now() + interval;
                 }
                 let sleep_duration = if now < next_tick { next_tick - now } else { Duration::from_millis(0) };
