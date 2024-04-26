@@ -1,8 +1,10 @@
 use std::collections::HashMap;
-use std::time::{Duration, Instant};
-use std::sync::mpsc::{self, Sender, Receiver};
+use std::sync::{mpsc, Mutex};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::thread;
+use std::time::Duration;
 use std::thread::JoinHandle;
+use lazy_static::lazy_static;
 
 pub static mut EXECUTE_CHECK_COUNT: u32 = 0;
 
@@ -14,66 +16,96 @@ fn execute_check(_check_name: &str) {
     }
 }
 
+pub struct JobQueue {
+    checks: Vec<String>,
+    executed_checks_count: AtomicUsize,
+}
+
+impl JobQueue {
+    pub fn new() -> JobQueue {
+        JobQueue {
+            checks: Vec::new(),
+            executed_checks_count: AtomicUsize::new(0),
+        }
+    }
+
+    pub fn add_check(&mut self, check_name: String) {
+        self.checks.push(check_name);
+    }
+
+    pub fn remove_check(&mut self, check_name: &str) {
+        self.checks.retain(|check| check != check_name);
+    }
+
+    pub fn execute_checks(&self) {
+        for check_name in &self.checks {
+            execute_check(check_name);
+            self.executed_checks_count.fetch_add(1, Ordering::SeqCst);
+        }
+    }
+
+    pub fn get_stats(&self) -> usize {
+        self.executed_checks_count.load(Ordering::SeqCst)
+    }
+}
+
+lazy_static! {
+    static ref ONCE_CHECK_MUTEX: Mutex<()> = Mutex::new(());
+}
+
 pub struct Scheduler {
-    // This struct will hold the state and functionality for the scheduler
-    tickers: HashMap<String, (Duration, Sender<()>)>,
+    job_queues: HashMap<Duration, JobQueue>,
 }
 
 impl Scheduler {
     pub fn new() -> Scheduler {
-        // Initialization of the scheduler
         Scheduler {
-            tickers: HashMap::new(),
+            job_queues: HashMap::new(),
         }
     }
 
     pub fn add_check(&mut self, check_name: String, interval: Duration) -> JoinHandle<()> {
-        // Method to add a new check to the scheduler
-        if interval == Duration::from_secs(0) {
-            panic!("Interval cannot be zero");
-        }
-        let (tx, rx) = mpsc::channel();
-        self.tickers.insert(check_name.clone(), (interval, tx));
-        self.start_ticker(check_name, rx, interval)
+        let job_queue = self.job_queues.entry(interval).or_insert_with(|| JobQueue::new());
+        job_queue.add_check(check_name.clone());
+        let handle = thread::spawn(move || {
+            // Logic to execute the check
+            execute_check(&check_name);
+        });
+        handle
     }
 
-    fn start_ticker(&self, check_name: String, rx: Receiver<()>, interval: Duration) -> JoinHandle<()> {
-        // Method to start a ticker for a check
+    pub fn has_ticker(&self, check_name: &str) -> bool {
+        self.job_queues.values().any(|job_queue| job_queue.checks.contains(&check_name.to_string()))
+    }
+
+    pub fn stop_check(&mut self, check_name: &str) {
+        for job_queue in self.job_queues.values_mut() {
+            job_queue.remove_check(check_name);
+        }
+    }
+
+    pub fn enqueue_once(&self, check_name: String, check_logic: fn(&str)) -> JoinHandle<()> {
+        let _guard = ONCE_CHECK_MUTEX.lock().unwrap();
+        let (tx, rx) = mpsc::channel();
+        let _ = tx.send(()); // Immediately trigger the check execution
         thread::spawn(move || {
-            let mut next_tick = Instant::now();
-            loop {
-                match rx.try_recv() {
-                    Ok(_) | Err(mpsc::TryRecvError::Disconnected) => {
-                        println!("Stop signal received, breaking loop...");
-                        break;
-                    },
-                    Err(mpsc::TryRecvError::Empty) => {
-                        let now = Instant::now();
-                        if now >= next_tick {
-                            execute_check(&check_name);
-                            next_tick = Instant::now() + interval;
-                        }
-                        let sleep_duration = if now < next_tick { next_tick - now } else { Duration::from_millis(0) };
-                        thread::sleep(sleep_duration);
-                    }
+            match rx.recv() {
+                Ok(_) => {
+                    check_logic(&check_name);
+                }
+                Err(_) => {
+                    println!("Failed to receive from channel for one-time execution");
                 }
             }
         })
     }
 
-    pub fn stop_check(&mut self, check_name: &str) {
-        // Method to stop a ticker and remove a check from the scheduler
-        if let Some((_, tx)) = self.tickers.remove(check_name) {
-            let _ = tx.send(()); // Send stop signal to the ticker thread
+    pub fn get_scheduler_stats(&self) -> HashMap<Duration, usize> {
+        let mut stats = HashMap::new();
+        for (&interval, job_queue) in &self.job_queues {
+            stats.insert(interval, job_queue.get_stats());
         }
-    }
-
-    pub fn has_ticker(&self, check_name: &str) -> bool {
-        self.tickers.contains_key(check_name)
-    }
-
-    pub fn get_ticker_count(&self) -> usize {
-        self.tickers.len()
+        stats
     }
 }
 
@@ -97,7 +129,7 @@ mod tests {
     #[test]
     fn scheduler_initialization() {
         let scheduler = Scheduler::new();
-        assert!(scheduler.tickers.is_empty(), "Scheduler tickers should be initialized as empty");
+        assert!(scheduler.job_queues.is_empty(), "Scheduler job_queues should be initialized as empty");
     }
 
     #[test]
