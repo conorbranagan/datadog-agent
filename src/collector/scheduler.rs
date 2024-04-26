@@ -43,11 +43,11 @@ impl Scheduler {
         thread::spawn(move || {
             let mut next_tick = Instant::now();
             loop {
-                let now = Instant::now();
                 if let Ok(_) = rx.try_recv() {
                     // Stop signal received
                     break;
                 }
+                let now = Instant::now();
                 if now >= next_tick {
                     // Time to run the check
                     execute_check(&check_name);
