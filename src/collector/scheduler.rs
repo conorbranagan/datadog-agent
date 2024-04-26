@@ -43,10 +43,13 @@ impl Scheduler {
         thread::spawn(move || {
             let mut next_tick = Instant::now();
             loop {
+                println!("Checking for stop signal..."); // New print statement
                 if let Ok(_) = rx.try_recv() {
                     // Stop signal received
+                    println!("Stop signal received, breaking loop..."); // New print statement
                     break;
                 }
+                println!("About to execute check..."); // New print statement
                 let now = Instant::now();
                 if now >= next_tick {
                     // Time to run the check
