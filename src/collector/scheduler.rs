@@ -7,8 +7,10 @@ use std::result;
 pub static mut EXECUTE_CHECK_COUNT: u32 = 0;
 
 fn execute_check(_check_name: &str) {
+    println!("execute_check called for {}", _check_name); // Added for debugging
     unsafe {
         EXECUTE_CHECK_COUNT += 1;
+        println!("EXECUTE_CHECK_COUNT incremented to {}", EXECUTE_CHECK_COUNT); // Added for debugging
     }
 }
 
@@ -134,8 +136,12 @@ mod tests {
     fn scheduler_starts_and_runs_checks() {
         let mut scheduler = Scheduler::new();
         let _ = scheduler.add_check("test_check".to_string(), Duration::from_millis(100));
+        unsafe {
+            println!("EXECUTE_CHECK_COUNT before sleep: {}", EXECUTE_CHECK_COUNT); // Added for debugging
+        }
         thread::sleep(Duration::from_millis(350)); // Allow time for checks to be executed
         unsafe {
+            println!("EXECUTE_CHECK_COUNT after sleep: {}", EXECUTE_CHECK_COUNT); // Added for debugging
             assert!(EXECUTE_CHECK_COUNT > 0, "Checks should have been executed");
         }
     }
