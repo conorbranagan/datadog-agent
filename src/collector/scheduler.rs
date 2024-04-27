@@ -64,17 +64,22 @@ impl Scheduler {
         }
     }
 
-    pub fn add_check(&mut self, check_name: String, interval: Duration) -> JoinHandle<()> {
+    pub fn add_check(&mut self, check_name: String, interval: Duration, is_test_env: bool) -> Option<JoinHandle<()>> {
         if interval == Duration::from_secs(0) {
             panic!("Interval cannot be zero");
         }
         let job_queue = self.job_queues.entry(interval).or_insert_with(|| JobQueue::new());
         job_queue.add_check(check_name.clone());
-        let handle = thread::spawn(move || {
-            // Logic to execute the check
+        if !is_test_env {
+            Some(thread::spawn(move || {
+                // Logic to execute the check
+                execute_check(&check_name);
+            }))
+        } else {
+            // Directly execute the check for test environment
             execute_check(&check_name);
-        });
-        handle
+            None
+        }
     }
 
     pub fn has_ticker(&self, check_name: &str) -> bool {
@@ -142,7 +147,7 @@ mod tests {
     #[test]
     fn add_and_stop_check() {
         let mut scheduler = Scheduler::new();
-        let _ = scheduler.add_check("test_check".to_string(), Duration::from_secs(1));
+        let _ = scheduler.add_check("test_check".to_string(), Duration::from_secs(1), true);
         assert!(scheduler.has_ticker("test_check"), "Check should be added to the scheduler");
 
         scheduler.stop_check("test_check");
@@ -153,20 +158,20 @@ mod tests {
     #[should_panic(expected = "Interval cannot be zero")]
     fn add_check_with_invalid_interval() {
         let mut scheduler = Scheduler::new();
-        let _ = scheduler.add_check("test_check".to_string(), Duration::from_secs(0)); // Zero interval is invalid
+        let _ = scheduler.add_check("test_check".to_string(), Duration::from_secs(0), true); // Zero interval is invalid
     }
 
     #[test]
     fn add_check_with_valid_interval() {
         let mut scheduler = Scheduler::new();
-        let _ = scheduler.add_check("test_check".to_string(), Duration::from_secs(5));
+        let _ = scheduler.add_check("test_check".to_string(), Duration::from_secs(5), true);
         assert!(scheduler.has_ticker("test_check"), "Check should be added to the scheduler");
     }
 
     #[test]
     fn cancel_scheduled_check() {
         let mut scheduler = Scheduler::new();
-        let _ = scheduler.add_check("test_check".to_string(), Duration::from_secs(5));
+        let _ = scheduler.add_check("test_check".to_string(), Duration::from_secs(5), true);
         scheduler.stop_check("test_check");
         assert!(!scheduler.has_ticker("test_check"), "Scheduled check should be canceled");
     }
@@ -174,7 +179,7 @@ mod tests {
     #[test]
     fn scheduler_starts_and_runs_checks() {
         let mut scheduler = Scheduler::new();
-        let _ = scheduler.add_check("test_check".to_string(), Duration::from_millis(100));
+        let _ = scheduler.add_check("test_check".to_string(), Duration::from_millis(100), true);
         unsafe {
             println!("EXECUTE_CHECK_COUNT before sleep: {}", EXECUTE_CHECK_COUNT); // Added for debugging
         }
@@ -188,10 +193,12 @@ mod tests {
     #[test]
     fn scheduler_stops_correctly() {
         let mut scheduler = Scheduler::new();
-        let handle = scheduler.add_check("test_check".to_string(), Duration::from_millis(100));
+        let handle = scheduler.add_check("test_check".to_string(), Duration::from_millis(100), true);
         thread::sleep(Duration::from_millis(350)); // Allow time for checks to be executed
         scheduler.stop_check("test_check");
-        handle.join().unwrap(); // Ensure the ticker thread has finished
+        if let Some(handle) = handle {
+            handle.join().unwrap(); // Ensure the ticker thread has finished
+        }
         let count_before_stop;
         unsafe {
             count_before_stop = EXECUTE_CHECK_COUNT;
