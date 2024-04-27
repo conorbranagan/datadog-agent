@@ -6,14 +6,12 @@ use std::time::Duration;
 use std::thread::JoinHandle;
 use lazy_static::lazy_static;
 
-pub static mut EXECUTE_CHECK_COUNT: u32 = 0;
+pub static EXECUTE_CHECK_COUNT: AtomicUsize = AtomicUsize::new(0);
 
 fn execute_check(_check_name: &str) {
     println!("execute_check called for {}", _check_name); // Added for debugging
-    unsafe {
-        EXECUTE_CHECK_COUNT += 1;
-        println!("EXECUTE_CHECK_COUNT incremented to {}", EXECUTE_CHECK_COUNT); // Added for debugging
-    }
+    EXECUTE_CHECK_COUNT.fetch_add(1, Ordering::SeqCst);
+    println!("EXECUTE_CHECK_COUNT incremented to {}", EXECUTE_CHECK_COUNT.load(Ordering::SeqCst)); // Added for debugging
 }
 
 pub struct JobQueue {
@@ -180,14 +178,10 @@ mod tests {
     fn scheduler_starts_and_runs_checks() {
         let mut scheduler = Scheduler::new();
         let _ = scheduler.add_check("test_check".to_string(), Duration::from_millis(100), true);
-        unsafe {
-            println!("EXECUTE_CHECK_COUNT before sleep: {}", EXECUTE_CHECK_COUNT); // Added for debugging
-        }
+        println!("EXECUTE_CHECK_COUNT before sleep: {}", EXECUTE_CHECK_COUNT.load(Ordering::SeqCst)); // Added for debugging
         thread::sleep(Duration::from_millis(350)); // Allow time for checks to be executed
-        unsafe {
-            println!("EXECUTE_CHECK_COUNT after sleep: {}", EXECUTE_CHECK_COUNT); // Added for debugging
-            assert!(EXECUTE_CHECK_COUNT > 0, "Checks should have been executed");
-        }
+        println!("EXECUTE_CHECK_COUNT after sleep: {}", EXECUTE_CHECK_COUNT.load(Ordering::SeqCst)); // Added for debugging
+        assert!(EXECUTE_CHECK_COUNT.load(Ordering::SeqCst) > 0, "Checks should have been executed");
     }
 
     #[test]
@@ -199,13 +193,8 @@ mod tests {
         if let Some(handle) = handle {
             handle.join().unwrap(); // Ensure the ticker thread has finished
         }
-        let count_before_stop;
-        unsafe {
-            count_before_stop = EXECUTE_CHECK_COUNT;
-        }
+        let count_before_stop = EXECUTE_CHECK_COUNT.load(Ordering::SeqCst);
         thread::sleep(Duration::from_millis(200)); // Allow more time to confirm no checks are executed
-        unsafe {
-            assert_eq!(EXECUTE_CHECK_COUNT, count_before_stop, "No further checks should be executed after stopping the scheduler");
-        }
+        assert_eq!(EXECUTE_CHECK_COUNT.load(Ordering::SeqCst), count_before_stop, "No further checks should be executed after stopping the scheduler");
     }
 }
